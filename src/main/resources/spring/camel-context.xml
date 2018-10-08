@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.springframework.org/schema/beans" xsi:schemaLocation="        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd        http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd        http://camel.apache.org/schema/cxf http://camel.apache.org/schema/cxf/camel-cxf.xsd        " xmlns:cxf="http://camel.apache.org/schema/cxf" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+	<!-- helper for reverse replays. This repository keeps an offset handled during replay -->
+	<bean id="repoState" class="org.apache.camel.impl.MemoryStateRepository" init-method="doStart" />
+	
+	<!-- helper for replays. This repository keeps an offset handled during replay -->
+	<bean id="fromDateRepoState" class="org.apache.camel.impl.MemoryStateRepository" init-method="doStart" />
+
+	<!-- for faster shutdowns -->
+	<bean id="shutdownStrategy" class="org.apache.camel.impl.DefaultShutdownStrategy">
+		<property name="timeout" value="10" />
+	</bean>
+
+
+	<camelContext xmlns="http://camel.apache.org/schema/spring" id="camel-kafka-vr">
+
+		<!-- import REST APIs definitions -->
+		<restContextRef ref="camel-kafka-vr-rest"/>
+
+
+		<!-- Default Camel consumer listening to new Kafka events -->
+		<route id="std-consumer">
+			<from uri="{{kafka.endpoint.standard}}" />
+			<log message="offset[${header.kafka.OFFSET}] time[${bean:helper.dateFromTs(${header.kafka.TIMESTAMP})}] body[${body}]"/>
+			<setBody>
+				<simple>${header.kafka.OFFSET}</simple>
+			</setBody>
+			<to uri="undertow:ws://{{server.address}}:{{wsock.port}}/camel/brokerReceivedEvents?sendToAll=true" />			
+			<!-- Publishing ansynchronously allows more natural visualisation ( i.e. 1 click 1 event, 2 clicks 2 events) -->			
+			<wireTap uri="direct:async-publish-to-browser"/>
+		</route>
+
+		<route id="async-publish-to-browser">
+			<from uri="direct:async-publish-to-browser"/>
+			<!-- delay to help visualisation. First arrives to Topic, then it gets consumed -->
+			<!-- Helps to simulate event can only be consumed after arrival in Topic -->
+			<delay> <constant>1000</constant> </delay>			
+			<to uri="direct:publishToBrowser"/>
+		</route>
+
+		<route id="publish-to-browser">
+			<from uri="direct:publishToBrowser"/>
+			<throttle timePeriodMillis="500">
+				<constant>1</constant>
+				<setBody>
+					<simple>${header.kafka.OFFSET}</simple>
+				</setBody>
+				<to uri="undertow:ws://{{server.address}}:{{wsock.port}}/camel/eventOffset?sendToAll=true" />
+			</throttle>
+		</route>
+
+		<!-- ON/OFF consumer for replays (from beginning) -->
+		<route id="from-start-consumer" autoStartup="false">
+			<from uri="{{kafka.endpoint.fromstart}}" />
+			<log message="offset[${header.kafka.OFFSET}] time[${bean:helper.dateFromTs(${header.kafka.TIMESTAMP})}] body[${body}]"/>
+			<bean ref="helper" method="checkReplay"/>
+			<to uri="direct:publishToBrowser" />
+		</route>
+
+		<!-- ON/OFF consumer for replays (from mid-stream) -->
+		<route id="from-datetime-consumer" autoStartup="false">
+			<from uri="{{kafka.endpoint.fromDateTime}}"></from>
+			<log message="offset[${header.kafka.OFFSET}] time[${bean:helper.dateFromTs(${header.kafka.TIMESTAMP})}] body[${body}]"/>
+			<bean ref="helper" method="checkReplay"/>
+			<to uri="direct:publishToBrowser" />
+		</route>
+
+		<!-- ON/OFF consumer for replays (backwards) -->
+		<route id="reverse-consumer" autoStartup="false">
+			<from uri="{{kafka.endpoint.reverse}}" id="from-kafka"/>
+			<log message="offset[${header.kafka.OFFSET}] time[${bean:helper.dateFromTs(${header.kafka.TIMESTAMP})}] body[${body}]"/>
+			<to uri="direct:publishToBrowser" />
+			<setHeader headerName="kafkaMyDate">
+				<method ref="helper" method="dateFromTs(${header.kafka.TIMESTAMP})"></method>
+			</setHeader>
+			<log message="mydate: ${header.kafkaMyDate}" />
+			<bean ref="helper" method="decrementOffset" />
+		</route>
+
+		<!-- trigger to start normal replay -->
+		<route id="start-from-beginning-consume">
+			<from uri="direct:start-from-beginning-consume" />
+			<bean ref="helper"  method="replayFromStartActivated"/>
+			<setBody>
+				<constant></constant>
+			</setBody>
+			<to uri="controlbus:route?routeId=from-start-consumer&amp;action=start" />
+			<setBody>
+				<constant>{"status" : "started"}</constant>
+			</setBody>
+		</route>
+
+		<!-- trigger to start continuous loop replay -->
+		<route id="loop-start-from-beginning-consume">
+			<from uri="direct:loop-start-from-beginning-consume" />
+			<setBody>
+				<constant></constant>
+			</setBody>
+			<to uri="controlbus:route?routeId=loop-start&amp;action=start" />
+			<setBody>
+				<constant>{"status" : "started"}</constant>
+			</setBody>
+		</route>
+
+		<!-- trigger to stop continuous loop replay -->
+		<route id="loop-stop-from-beginning-consume">
+			<from uri="direct:loop-stop-from-beginning-consume" />
+			<setBody>
+				<constant></constant>
+			</setBody>
+			<to uri="controlbus:route?routeId=loop-start&amp;action=stop" />
+			<setBody>
+				<constant>{"status" : "stopped"}</constant>
+			</setBody>
+		</route>
+
+		<!-- ON/OFF continuous replays -->
+		<route id="loop-start" autoStartup="false">
+			<from uri="timer:loopStart?fixedRate=true&amp;period=10000" />
+			<log message="timed start triggered" />
+			<to uri="direct:start-from-beginning-consume" />
+		</route>
+
+		<!-- trigger to start reverse replay -->
+		<route id="start-reverse-consume">
+			<from uri="direct:start-reverse-consume" />
+			<setHeader headerName="lastOffset">
+				<method ref="helper" method="reverseOffset()" />
+			</setHeader>
+			<log message="${header.lastOffset} ${header.lastOffset.class}" />
+			<setBody>
+				<constant></constant>
+			</setBody>
+			<to uri="language:simple:${bean:repoState.setState('test/0',${header.lastOffset})}?transform=false" />
+			<log message="state is: ${bean:repoState.getState('test/0')}" />
+			<to uri="controlbus:route?routeId=reverse-consumer&amp;action=start" />
+			<setBody>
+				<constant>{"status" : "started"}</constant>
+			</setBody>
+		</route>
+
+		<!-- trigger to start mid-stream replay (by dateTime) -->
+		<route id="start-from-date-time-consume">
+			<from uri="direct:start-from-date-time-consume" />
+			<log message="${body.class}"></log>
+			<log message="${body.dateTime}" />
+			<setHeader headerName="lastOffset">
+				<method ref="helper" method="offsetAtTime(${body.dateTime})"></method>
+			</setHeader>
+			<log message="${header.lastOffset} ${header.lastOffset.class}" />
+			<choice>
+				<when>
+					<simple>${header.lastOffset.getOffset()} != null</simple>
+					<bean ref="helper"  method="replayFromMiddleActivated"/>
+					<setBody>
+						<constant></constant>
+					</setBody>
+					<to uri="language:simple:${bean:fromDateRepoState.setState('test/0',${header.lastOffset.getOffset()})}?transform=false" />
+					<log message="state is: ${bean:fromDateRepoState.getState('test/0')}" />
+					<to uri="controlbus:route?routeId=from-datetime-consumer&amp;action=start" />
+				</when>
+				<otherwise>
+					<setBody>
+						<constant>{"status" : "no offset found not start"}</constant>
+					</setBody>
+				</otherwise>
+			</choice>
+			<setBody>
+				<constant>{"status" : "started"}</constant>
+			</setBody>
+		</route>
+
+		<!-- trigger to start mid-stream replay (by offset) -->
+		<route id="start-from-offset-consume">
+			<from uri="direct:start-from-offset-consume" />
+			<log message="${body.class}"></log>
+			<log message="${body.dateTime}" />
+			<log message="${header.lastOffset} ${header.lastOffset.class}" />
+			<choice>
+				<when>
+					<simple>${header.lastOffset} != null</simple>
+					<bean ref="helper"  method="replayFromMiddleActivated"/>
+					<setBody>
+						<constant></constant>
+					</setBody>
+					<to uri="language:simple:${bean:fromDateRepoState.setState('test/0',${header.lastOffset}--)}?transform=false" />
+					<log message="state is: ${bean:fromDateRepoState.getState('test/0')}" />
+					<to uri="controlbus:route?routeId=from-datetime-consumer&amp;action=start" />
+				</when>
+				<otherwise>
+					<setBody>
+						<constant>{"status" : "no offset found not start"}</constant>
+					</setBody>
+				</otherwise>
+			</choice>
+			<setBody>
+				<constant>{"status" : "started"}</constant>
+			</setBody>
+		</route>
+
+   <!-- This Camel route is a helper to allow the same OCP route to enable both HTTP and WebSocket connectivity.
+		The JavaStript is a static resource and relies on the browser to resolve the OCP address
+		and open connections:
+		 > Camel will redirect the browser to the default port to obtain the HTML files (visualisation pages)
+		 > The JavaStript code in the HTML will then be able to open the WebSockets Camel made ready (other WS routes)  -->
+		<route>
+			<from uri="undertow:http://{{server.address}}:{{wsock.port}}/?matchOnUriPrefix=true"/>
+			<to uri="undertow:http://{{server.address}}:{{server.port}}"></to>
+		</route>
+
+   <!-- This route serves 2 purposes
+		 1) to setup (on connection) the visual topic view (display events as queued in Kafka)
+		 2) accept new events from GUI (click on 'send event' button) and push to the Kafka Topic -->
+		<route>
+			<from uri="undertow:ws://{{server.address}}:{{wsock.port}}/camel/brokerReceivedEvents"/>
+			<log message="got message: ${body}"/>
+			<log message="current offset is: ${bean:helper?method=endOffSet}"/>
+			<choice>
+				<when>
+					<simple>${body} == 'connection'</simple>
+					<loop>
+						<simple>${bean:helper?method=endOffSet}</simple>
+						<delay> <constant>100</constant> </delay>
+						<setBody>
+							<simple>${header.CamelLoopIndex}</simple>
+						</setBody>
+						<to uri="undertow:ws://{{server.address}}:{{wsock.port}}/camel/brokerReceivedEvents"/>
+					</loop>
+				</when>
+				<otherwise>
+					<log message="not connect: ${body}"/>
+					<to uri="{{kafka.endpoint.standard}}" />
+				</otherwise>
+			</choice>
+		</route>
+
+	</camelContext>
+</beans>

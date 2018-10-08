@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+
+      .button {
+        padding: 5px 15px;
+        font-size: 24px;
+          width: 100%;
+        cursor: pointer;
+        text-align: center;
+        /*text-decoration: none;*/
+        outline: none;
+        color: #fff;
+        /*color: grey;*/
+        /*background-color: #4CAF50;*/
+        background-color: grey;
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 5px #999;
+      }
+
+      .button:hover {background-color: #3e8e41}
+
+      .button:active {
+        background-color: #3e8e41;
+        box-shadow: 0 2px #666;
+        transform: translateY(4px);
+      }
+
+      p {
+        font-size: 24pt;
+        text-align: center; 
+        width: 200px;
+        height: 35px;
+        color: white;
+        /*background-color: grey;*/
+        opacity: 1;
+        position: fixed;
+        top: 30px;  
+        z-index: 1;
+      }
+
+      .producer {
+        left: 20px;
+      }  
+
+/*       .new-event {
+        left: 20px;
+        top: 70px;
+      }  */
+      
+      
+  </style>
+
+    <script src="base.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
+
+    <script src="https://unpkg.com/aframe-outline@%5E1.1.0/build/aframe-outline.min.js"></script>
+    <script src="https://unpkg.com/aframe-animation-component@3.2.1/dist/aframe-animation-component.min.js"></script>
+
+
+    <script>
+
+        var x = 6;
+        var delay = 0;
+        var num = 1;
+
+
+
+        function init()
+        {
+
+          var ws = initWebSocket()
+            
+          ws.onmessage = function (evt) {
+              sendMessage(evt.data);
+          };
+            
+          var scene = document.getElementById("scene");
+
+          startConsumer()
+          
+          let stream = [1,2,3,4,5,6,7,8,9,10]
+         // consumeEventArray(stream)
+          
+          num = 11
+        }
+
+        function sendMessage(item)
+        {
+          let scene = document.getElementById("scene");
+          
+          // messageEvent(scene, x-=.8, delay, num)
+          
+          consumeEvent(item)
+
+          
+          num++
+        }
+      
+        function messageEvent(scene, posX, delay, num, posY)
+        {
+          posY = posY || 0;
+                  
+          var msg;
+        
+          msg = document.createElement('a-box')
+          msg.setAttribute('position', {x: -10, y: posY, z: 0})
+          msg.setAttribute('height', .5)
+          msg.setAttribute('width' , .5)
+          msg.setAttribute('depth' , .2)
+          msg.setAttribute('side', "double")
+          msg.setAttribute('color', "red")
+          
+          var number = document.createElement('a-text')
+          number.setAttribute('value', num)
+          number.setAttribute('align', 'center')
+          number.setAttribute('scale', "2 2 2")
+          msg.appendChild(number);
+          number.setAttribute('position', {z: 0.100001})
+       
+          let target = {  x: posX,
+                          y: posY, 
+                          z: 0}
+          
+          msg.setAttribute(
+              'animation',
+              {  property: 'position', 
+                 dur: '1000', 
+                 delay: delay, 
+                 to: target,
+                 easing: 'easeOutQuad'
+              });
+          
+          scene.appendChild(msg);        
+        }
+      
+    </script>
+  </head>
+  <body onload="init()">
+<!--   <body o> -->
+    
+
+      <!-- <p class="producer timer"><button class="button"  onclick="sendMessage('T')">Consumer View</button></p> -->
+
+
+<!-- 
+    When Scene raycaster is set to recursive=false, only designated elements with class=clickable will be mouse sensive
+-->
+    <!-- <a-scene myoutline cursor="rayOrigin:mouse" raycaster="objects: .testcollidable" > -->
+    <a-scene id="scene" myoutline cursor="rayOrigin:mouse" raycaster="objects: .clickable, .testcollidable" vr-mode-ui="enabled: false">
+
+
+<!--       <a-entity id="main-camera" position="1.5 1.5 1.5" rotation="-30 30 0"> -->
+      <a-entity id="main-camera" position="0 -2 4">
+        <a-camera look-controls-enabled="true" />
+      </a-entity>
+
+
+      
+      <a-sky color="black"></a-sky>
+
+	  </a-scene>
+
+  </body>
+</html>

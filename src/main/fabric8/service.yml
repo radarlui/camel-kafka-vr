@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "${project.artifactId}"
+  creationTimestamp:
+  labels:
+    app: "${project.artifactId}"
+    provider: fabric8
+    version: "${project.version}"
+    group: "${project.groupId}"
+spec:
+  ports:
+  - name: http-svc-tcp
+    port: 8290
+    protocol: TCP
+    targetPort: 8290
+  selector:
+    component: "${project.artifactId}"
+    deploymentconfig: "${project.artifactId}"
+  selector:
+    app: "${project.artifactId}"
+    group: "${project.groupId}"
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}

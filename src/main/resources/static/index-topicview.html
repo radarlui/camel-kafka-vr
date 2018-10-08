@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+
+      .button {
+        padding: 5px 5px;
+        font-size: 24px;
+          width: 100%;
+        cursor: pointer;
+        text-align: center;
+        /*text-decoration: none;*/
+        outline: none;
+        color: #fff;
+        /*color: grey;*/
+        /*background-color: #4CAF50;*/
+        background-color: grey;
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 5px #999;
+      }
+
+      .button:hover {background-color: #3e8e41}
+
+      .button:active {
+        background-color: #3e8e41;
+        box-shadow: 0 2px #666;
+        transform: translateY(4px);
+      }
+
+      p {
+        font-size: 24pt;
+        text-align: center; 
+        width: 200px;
+        height: 35px;
+        color: white;
+        /*background-color: grey;*/
+        opacity: 1;
+        position: fixed;
+        top: 0px;  
+        z-index: 1;
+      }
+
+      .producer {
+        left: 20px;
+      }  
+
+/*       .new-event {
+        left: 20px;
+        top: 70px;
+      }  */
+      
+      
+  </style>
+
+
+    <script src="base.js"></script>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
+
+    <script src="https://unpkg.com/aframe-outline@%5E1.1.0/build/aframe-outline.min.js"></script>
+    <script src="https://unpkg.com/aframe-animation-component@3.2.1/dist/aframe-animation-component.min.js"></script>
+
+
+    <script>
+
+        var x = 6;
+        var delay = 0;
+        var num = 1;
+        var cameraZ = 5;
+
+        var arrow;
+
+      var ws;
+      var wsConsumer;
+
+      function init()
+      {
+
+          prepareScene()
+               
+
+        ws         = new WebSocket(((window.location.protocol === 'https:') ? 'wss://' : 'ws://') + window.location.host + '/camel/brokerReceivedEvents');
+        wsConsumer = initWebSocket();
+        
+        ws.onmessage = function (evt) {
+
+            let pos = -(evt.data * .8) + 6 //-.8
+            arrow.setAttribute('position', {x: pos-.8})
+
+            sendMessage(evt.data);
+        };
+   
+        wsConsumer.onmessage = function (evt){
+         
+          let pos = -(evt.data * .8) + 6 //-.8
+          arrow.setAttribute('position', {x: pos-.8}) 
+        }
+     
+        ws.onopen = function()
+        {
+          console.log("about to send via WS on connect");
+          ws.send("connection");
+        }
+
+        var scene = document.getElementById("scene");
+
+
+      }
+
+
+        function prepareScene()
+        {
+          let scene  = document.getElementById("scene");
+          let camera = document.getElementById("main-camera");
+          
+          var label = document.createElement('a-text')
+          label.setAttribute('value', 'Topic view in Kafka')
+          label.setAttribute('scale', "2 2 2")
+          label.setAttribute('align', 'center')
+          label.setAttribute('color', 'grey')
+          camera.appendChild(label);
+          // label.setAttribute('position', {y: -0.7, z: -1})
+          label.setAttribute('position', {y: -0.45, z: -1})
+          
+
+          arrow = document.createElement('a-triangle');
+          arrow.setAttribute("vertex-a","0 .5 0.1")
+          arrow.setAttribute("vertex-b","-.35 1.3 0.1")
+          arrow.setAttribute("vertex-c",".35 1.3 0.1")
+          arrow.setAttribute("color","grey")
+          arrow.setAttribute('side', 'double');
+          arrow.setAttribute('position', {x: x-.8})
+          scene.appendChild(arrow);
+
+          label = document.createElement('a-text')
+          label.setAttribute('value', 'offset')
+          label.setAttribute('scale', "3 3 3")
+          label.setAttribute('align', 'center')
+          label.setAttribute('color', 'grey')
+          label.setAttribute('position', {x: 0, y: 1.8, z: 0.1})
+          arrow.appendChild(label);
+        }
+
+
+      var cameraX = 0;
+      // var cameraZ = 1.5;
+      var cameraZ = 2.0;
+      var flyFromX = -10;
+      
+      function manageCamera()
+      {
+        if(num > 10)
+        {
+              let camera = document.getElementById("main-camera");
+              cameraZ+=.1
+              cameraX-=.4,
+              camera.setAttribute(
+                      'animation',
+                      {  property: 'position', 
+                         dur: '1000',
+                         to: cameraX+" 0 "+cameraZ,
+                         easing: 'easeInOutQuad'
+                      });
+
+              //listens animation end
+              camera.addEventListener('animationcomplete', function cleanAnimation() {
+
+                  //delete listener
+                  this.removeEventListener('animationcomplete', cleanAnimation);
+
+                  //delete animation
+                  this.removeAttribute('animation');
+              });
+        }
+      }
+      
+      function sendKafkaEvent()
+      {
+        ws.send("dummy");
+      }
+      
+      function sendMessage(item)
+      {
+        let scene = document.getElementById("scene");
+        
+        manageCamera()
+        
+        messageEvent(scene, x-=.8, delay, item)
+        
+        
+        // let stream = [1,2,3,4,5,6,7,8,9,10]
+        // consumeEventArray(stream)
+        
+        num++
+      }
+    
+      function messageEvent(scene, posX, delay, num, posY)
+      {
+        posY = posY || 0;
+                
+        var msg;
+
+        msg = document.createElement('a-box')
+        msg.setAttribute('position', {x: flyFromX-=.8, y: posY, z: 0})
+        msg.setAttribute('height', .5)
+        msg.setAttribute('width' , .5)
+        msg.setAttribute('depth' , .2)
+        msg.setAttribute('side', "double")
+        msg.setAttribute('color', "red")
+        
+        var number = document.createElement('a-text')
+        number.setAttribute('value', num)
+        number.setAttribute('align', 'center')
+        number.setAttribute('scale', "2 2 2")
+        msg.appendChild(number);
+        number.setAttribute('position', {z: 0.100001})
+     
+        let target = {  x: posX,
+                        y: posY, 
+                        z: 0}
+        
+        msg.setAttribute(
+            'animation',
+            {  property: 'position', 
+               dur: '1000', 
+               delay: delay, 
+               to: target,
+               easing: 'easeOutQuad'
+            });
+        
+        scene.appendChild(msg);        
+      }
+      
+    </script>
+  </head>
+  <body onload="init()">
+<!--   <body o> -->
+    
+
+      <!-- <p class="producer timer"><button class="button"  onclick="sendMessage('T')">Topic View</button></p> -->
+      <p class="producer timer"><button class="button"  onclick="sendKafkaEvent()">Send Event</button></p>
+
+      
+<!-- 
+    When Scene raycaster is set to recursive=false, only designated elements with class=clickable will be mouse sensive
+-->
+    <!-- <a-scene myoutline cursor="rayOrigin:mouse" raycaster="objects: .testcollidable" > -->
+    <a-scene id="scene" myoutline cursor="rayOrigin:mouse" raycaster="objects: .clickable, .testcollidable" vr-mode-ui="enabled: false">
+
+
+<!--       <a-entity id="main-camera" position="1.5 1.5 1.5" rotation="-30 30 0"> -->
+      <a-entity id="main-camera" position="0 0 1.5">
+        <a-camera look-controls-enabled="true" />
+      </a-entity>
+
+
+      
+      <a-sky color="black"></a-sky>
+
+	  </a-scene>
+
+  </body>
+</html>

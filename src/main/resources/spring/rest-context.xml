@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans	xmlns:context="http://www.springframework.org/schema/context"
+		xmlns="http://www.springframework.org/schema/beans"
+		xsi:schemaLocation="
+		        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+				http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd
+				http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+				http://camel.apache.org/schema/cxf http://camel.apache.org/schema/cxf/camel-cxf.xsd"
+		
+		xmlns:cxf="http://camel.apache.org/schema/cxf"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+	<!-- REST API definition -->
+	<restContext id="camel-kafka-vr-rest" xmlns="http://camel.apache.org/schema/spring">
+
+		<rest path="/consumeFromBeginning" bindingMode="off">
+			<get uri="/loopStart">
+				<to uri="direct:loop-start-from-beginning-consume"/>
+			</get>
+			<get uri="/loopStop">
+				<to uri="direct:loop-stop-from-beginning-consume"/>
+			</get>
+			<get uri="/start">
+				<to uri="direct:start-from-beginning-consume"/>
+			</get>
+		</rest>
+
+		<rest path="/consumeFromReference">
+			<post uri="/startFromDateTime" type="techlab.model.GetOffsetAtDateTimeRequest">
+				<to uri="direct:start-from-date-time-consume"/>
+			</post>
+			<post uri="/startFromOffset">
+				<param name="lastOffset" type="header"/>
+				<to uri="direct:start-from-offset-consume"/>
+			</post>
+		</rest>
+
+		<rest path="/consumeInReverse" bindingMode="off">
+			<get uri="/start">
+				<to uri="direct:start-reverse-consume"/>
+			</get>
+		</rest>
+
+		<rest path="/messageOperations">
+			<get uri="/sendRandomNumber">
+				<route>
+					<setBody>
+						<simple>random(0,100)</simple>
+					</setBody>
+					<to uri="{{kafka.endpoint.standard}}" />
+				</route>
+			</get>
+			<post uri="/sendMsg">
+				<param name="content" type="header" required="false"/>
+				<route>
+					<setBody>
+						<simple>${header.content}</simple>
+					</setBody>
+					<to uri="{{kafka.endpoint.standard}}" />
+					<setBody>
+						<method ref="processSendRequest" />
+					</setBody>
+				</route>
+			</post>
+		</rest>
+
+		<rest path="/offsetOperations">
+			<get bindingMode="off" uri="/getLastOffset">
+				<route>
+					<transform>
+						<method ref="helper" method="endOffSet()"></method>
+					</transform>
+					<setBody>
+						<simple>{"${properties:kafka.topic}": ${body}}</simple>
+					</setBody>
+				</route>
+			</get>
+			<post uri="/getOffsetAtDateTime" type="techlab.model.GetOffsetAtDateTimeRequest" outType="techlab.model.GetOffsetAtDateTimeResponse">
+				<route>
+					<log message="${body.dateTime}" />
+					<transform>
+						<method ref="helper" method="offsetAtTime(${body.dateTime})"></method>
+					</transform>
+				</route>
+			</post>
+		</rest>
+
+		<rest path="/restsvc">
+			<get uri="/ping">
+				<route>
+					<setBody>
+						<method ref="myTransformer" />
+					</setBody>
+				</route>
+			</get>
+		</rest>
+
+	</restContext>
+</beans>

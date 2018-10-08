@@ -1,0 +1,10 @@
+Demo updates:
+
+1) Normalised grouping of APIs and naming convention
+2) Reordered APIs to match Swagger listing
+3) Renamed routes for more compact log lines
+4) Added replay loops for continuous visual animations
+5) Automated consumer shutdowns after replays
+6) Polished visuals, including offset marker
+7) Show timestamps on logs to match API dateTime format
+8) Added OCP routes for topic view and Swagger APIs
