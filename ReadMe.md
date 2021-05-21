@@ -19,7 +19,7 @@ To run in OpenShift:
 
 3. Deploy the demo application (Add a new parameter --kafka.broker to the JAVA_ARGS environment variable to specify the correct Kafka boostrap URL in case the Kafka cluster name is not my-cluster)
 
-		oc new-app java:8~https://github.com/radarlui/camel-kafka-vr -e JAVA_ARGS="--camelrest.host=camel-kafka-vr-<project_name>.apps.tyip.hklab-redhat.com"
+		oc new-app java:8~https://github.com/radarlui/camel-kafka-vr -e JAVA_ARGS="--camelrest.host=camel-kafka-vr-<project_name>.<apps_domain_name>"
 
 4. Create services and routes to open 2 views for the application:
 
@@ -29,7 +29,7 @@ To run in OpenShift:
 		oc expose deployments/camel-kafka-vr --name=camel-kafka-vr-ui --port=8290
 		oc expose service/camel-kafka-vr
 		oc expose service/camel-kafka-vr-ui
-		oc expose service/camel-kafka-vr --name camel-kafak-vr-rest --path=/webjars/swagger-ui/2.1.0/index.html?url=/camel/api-docs --hostname=camel-kafka-vr-<project_name>.apps.tyip.hklab-redhat.com
+		oc expose service/camel-kafka-vr --name camel-kafak-vr-rest --path=/webjars/swagger-ui/2.1.0/index.html?url=/camel/api-docs --hostname=camel-kafka-vr-<project_name>.<apps_domain_name>
     
 5. After the build and deployment is finished, the application can be accessed through the following routes:
 
