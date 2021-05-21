@@ -17,7 +17,7 @@ To run in OpenShift:
 2. Install AMQ Streams (Kafka on OpenShift) Operator and deploy a Kafka cluster with name my-cluster
 		 
 
-3. Deploy the demo application (Add a new parameter --kafka.broker to specify the correct Kafka boostrap URL in case the Kafka cluster name is not my-cluster)
+3. Deploy the demo application (Add a new parameter --kafka.broker to the JAVA_ARGS environment variable to specify the correct Kafka boostrap URL in case the Kafka cluster name is not my-cluster)
 
 		oc new-app java:8~https://github.com/radarlui/camel-kafka-vr -e JAVA_ARGS="--camelrest.host=camel-kafka-vr-<project_name>.apps.tyip.hklab-redhat.com"
 
