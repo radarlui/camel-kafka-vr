@@ -6,65 +6,32 @@ This Project uses Camel to integrate with Kafka and showcases different replay c
 ![Alt text](assets/swagger.png?raw=true "Title")
 ![Alt text](assets/3d-viewer.png?raw=true "Title")
 
-
-To run locally:
-
-1. Download KAFKA
-		
-2. Start Zookeeper
-
-		bin/zookeeper-server-start.sh config/zookeeper.properties
-		
-3. Start Kafka Broker
-
-		bin/kafka-server-start.sh config/server.properties
-	
-4. Create a topic called test
-		
-		bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic test
-	
-5. Run the App
-    	
-    	mvn spring-boot:run
-
-6. View REST operations with swagger UI    
-    	
-    	http://localhost:8080/webjars/swagger-ui/2.1.0/index.html?url=/camel/api-docs#/
-    
-    
-7. To clean topic, delete and recreate with no consumers running
-    	
-		bin/kafka-topics.sh --zookeeper localhost:2181 --delete --topic test
-
-8. Graphical view
-
-		(local)
-		http://localhost:8290/
-		http://localhost:8290/topicview.html
     
 
 To run in OpenShift:
 
-1. Deploy Strimzi (Kafka on OpenShift)
+1. Create a new project on OpenShift
+
+		oc new-project <project_name>
 		
-		http://strimzi.io/documentation/
+2. Install AMQ Streams (Kafka on OpenShift) Operator and deploy a Kafka cluster with name my-cluster
+		 
 
-2. Create 'test' topic in Strimzi
+3. Deploy the demo application (Add a new parameter --kafka.broker to specify the correct Kafka boostrap URL in case the Kafka cluster name is not my-cluster)
 
-		oc apply -f ocp/kafkatopic.yml
+		oc new-app java:8~https://github.com/radarlui/camel-kafka-vr -e JAVA_ARGS="--camelrest.host=camel-kafka-vr-<project_name>.apps.tyip.hklab-redhat.com"
 
-3. Ensure the following route definitions point to your OCP environment (field 'host')
+4. Create services and routes to open 2 views for the application:
 
-		swagger-std-route.yml
-		topicview-route.yml
-
-4. Deploy project where in Strimzi's namespace
-
-		mvn -P ocp fabric8:deploy
-
-5. The deployed application contains routes to open all 3 views:
-
-		Swagger REST API: [camel-kafka-vr-svc-swagger]
-		Default view:     [camel-kafka-vr]
-		Topic view:       [camel-kafka-vr-topicview]
+		Swagger REST API:            [camel-kafka-vr-rest]
+		Topic and Consumer view:     [camel-kafka-vr-ui]
+		
+		oc expose deployments/camel-kafka-vr --name=camel-kafka-vr-ui --port=8290
+		oc expose service/camel-kafka-vr
+		oc expose service/camel-kafka-vr-ui
+		oc expose service/camel-kafka-vr --name camel-kafak-vr-rest --path=/webjars/swagger-ui/2.1.0/index.html?url=/camel/api-docs --hostname=camel-kafka-vr-<project_name>.apps.tyip.hklab-redhat.com
     
+5. After the build and deployment is finished, the application can be accessed through the following routes:
+
+		Swagger REST API:            [camel-kafka-vr-rest]
+		Topic and Consumer view:     [camel-kafka-vr-ui]		
